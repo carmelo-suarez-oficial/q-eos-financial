@@ -48,3 +48,14 @@ class ResultadoPrevisional:
     @property
     def resultado_total(self) -> float:
         return _round(self.margen_bruto_total - self.cargas_totales)
+
+class PresupuestoOperaciones:
+    def __init__(self):
+        self._lineas = []
+        
+    def add(self, linea: LineaNegocio):
+        self._lineas.append(linea)
+        return self
+        
+    def cerrar(self) -> ResultadoPrevisional:
+        return ResultadoPrevisional(tuple(self._lineas))

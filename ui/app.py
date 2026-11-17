@@ -1,19 +1,17 @@
 """
 Q-EOS Financial Management Framework
-Aplicación principal unificada
+Aplicación principal unificada (Versión 2.2 - A prueba de errores)
 """
 import streamlit as st
 import pandas as pd
 from core.margen import calcular_precio
 from core.modelo_economico import LineaNegocio, PresupuestoOperaciones
-from core.tesoreria import desde_modelo_economico
 
 st.set_page_config(page_title="Q-EOS Financial Framework", page_icon="🏛️", layout="wide")
 
 st.sidebar.title("🏛️ Q-EOS")
 st.sidebar.markdown("Sistema de Gestión Financiera")
 
-# Menú de navegación en la barra lateral
 menu = st.sidebar.radio(
     "Selecciona un módulo:",
     ["1. Margen y Precios", "2. Modelo Económico", "3. Tesorería"]
@@ -39,17 +37,56 @@ if menu == "1. Margen y Precios":
 # --- PÁGINA 2: MODELO ECONÓMICO ---
 elif menu == "2. Modelo Económico":
     st.title("📊 Presupuesto de Operaciones")
-    st.caption("Calcula el resultado previsional de tu negocio.")
+    st.caption("Añade tus líneas de negocio para calcular el resultado previsional.")
     
-    c1, c2, c3 = st.columns(3)
-    ventas = c1.number_input("Ventas previstas (€)", min_value=0.0, value=100000.0)
-    margen = c2.number_input("Margen sobre ventas (%)", min_value=0.0, value=30.0)
-    cargas = c3.number_input("Cargas totales (€)", min_value=0.0, value=25000.0)
+    st.markdown("### 1. Introduce tus líneas de negocio")
+    if "lineas_data" not in st.session_state:
+        st.session_state.lineas_data = pd.DataFrame([
+            {"Nombre": "Producto A", "Ventas (€)": 100000.0, "Margen (%)": 30.0, "Cargas (€)": 20000.0},
+            {"Nombre": "Producto B", "Ventas (€)": 50000.0, "Margen (%)": 20.0, "Cargas (€)": 10000.0}
+        ])
+        
+    # Usamos width="stretch" para evitar los avisos amarillos
+    edited_df = st.data_editor(st.session_state.lineas_data, num_rows="dynamic", width="stretch")
     
-    if st.button("Calcular Resultado"):
-        linea = LineaNegocio("Línea 1", ventas, margen, cargas)
-        st.success(f"Resultado estimado: **{linea.resultado:,.2f} €**")
-        st.write(f"Margen bruto: {linea.margen_bruto:,.2f} €")
+    if st.button("Calcular Resultado Previsional"):
+        # Función blindada para convertir cualquier celda vacía o error en 0.0
+        def safe_float(val):
+            if pd.isna(val) or val is None or str(val).strip() == "":
+                return 0.0
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return 0.0
+
+        p = PresupuestoOperaciones()
+        for _, row in edited_df.iterrows():
+            nombre = str(row["Nombre"]) if not pd.isna(row["Nombre"]) else "Sin nombre"
+            linea = LineaNegocio(
+                nombre=nombre, 
+                ventas=safe_float(row["Ventas (€)"]), 
+                margen_pct=safe_float(row["Margen (%)"]), 
+                cargas_estructura=safe_float(row["Cargas (€)"])
+            )
+            p.add(linea)
+            
+        resultado = p.cerrar()
+        
+        st.markdown("### 2. Resultados")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Ventas Totales", f"{resultado.ventas_totales:,.2f} €")
+        c2.metric("Margen Bruto", f"{resultado.margen_bruto_total:,.2f} €")
+        c3.metric("Cargas Totales", f"{resultado.cargas_totales:,.2f} €")
+        
+        delta_pct = (resultado.resultado_total / resultado.ventas_totales * 100) if resultado.ventas_totales > 0 else 0
+        c4.metric("Resultado", f"{resultado.resultado_total:,.2f} €", delta=f"{delta_pct:.1f}% s/ventas")
+        
+        st.markdown("### 3. Gráfico de Contribución")
+        chart_data = pd.DataFrame({
+            "Concepto": ["Margen Bruto", "Cargas", "Resultado"],
+            "Euros": [resultado.margen_bruto_total, resultado.cargas_totales, resultado.resultado_total]
+        })
+        st.bar_chart(chart_data.set_index("Concepto"))
 
 # --- PÁGINA 3: TESORERÍA ---
 elif menu == "3. Tesorería":

@@ -1,6 +1,6 @@
 """
 Q-EOS Financial Management Framework
-Aplicación completa (Versión 3.0 - Plan de Gestión)
+Aplicación completa (Versión 3.1 - Plan de Gestión + Control)
 """
 import streamlit as st
 import pandas as pd
@@ -8,6 +8,7 @@ from core.margen import calcular_precio
 from core.modelo_economico import LineaNegocio, PresupuestoOperaciones
 from core.balances import ActivoNoCorriente, ActivoCorriente, PatrimonioNeto, PasivoNoCorriente, PasivoCorriente, Balance
 from core.diagnostico import Diagnostico
+from core.control import Desviacion
 
 st.set_page_config(page_title="Q-EOS Financial Framework", page_icon="🏛️", layout="wide")
 
@@ -16,7 +17,7 @@ st.sidebar.markdown("Sistema de Gestión Financiera")
 
 menu = st.sidebar.radio(
     "Selecciona un módulo:",
-    ["1. Margen y Precios", "2. Modelo Económico", "3. Tesorería", "4. Balance Previsional", "5. Diagnóstico"]
+    ["1. Margen y Precios", "2. Modelo Económico", "3. Tesorería", "4. Balance Previsional", "5. Diagnóstico", "6. Control de Gestión"]
 )
 
 # --- PÁGINA 1: MARGEN ---
@@ -128,7 +129,7 @@ elif menu == "4. Balance Previsional":
             nombre="Balance Previsional", 
             activo_no_corriente=anc, activo_corriente=ac, 
             patrimonio_neto=pn, pasivo_no_corriente=pnc, pasivo_corriente=pc,
-            tolerancia=1000000.0 # Tolerancia alta para permitir visualización
+            tolerancia=1000000.0
         )
         
         st.markdown("### Resultados del Balance")
@@ -160,7 +161,6 @@ elif menu == "5. Diagnóstico":
     pn = c2.number_input("Patrimonio Neto (€)", value=110000.0)
     
     if st.button("Calcular Diagnóstico"):
-        # Creamos un objeto de diagnóstico básico
         diag = Diagnostico(
             ventas=ventas, resultado_neto=resultado, bait=bait,
             activo_total=activo, patrimonio_neto=pn, pasivo_total=activo-pn,
@@ -181,3 +181,55 @@ elif menu == "5. Diagnóstico":
             st.warning("🟡 Rentabilidad positiva pero mejorable")
         else:
             st.error("🔴 Pérdidas: La empresa destruye valor")
+
+# --- PÁGINA 6: CONTROL DE GESTIÓN ---
+elif menu == "6. Control de Gestión":
+    st.title("🎛️ Seguimiento y Control de Gestión")
+    st.caption("Compara el presupuesto con los datos reales para detectar desviaciones.")
+    
+    st.markdown("### 1. Introduce los datos (Presupuesto vs Real)")
+    
+    # Creamos una tabla editable para introducir los datos
+    if "control_data" not in st.session_state:
+        st.session_state.control_data = pd.DataFrame([
+            {"Concepto": "Ventas", "Tipo": "Ingreso", "Presupuesto (€)": 100000.0, "Real (€)": 95000.0},
+            {"Concepto": "Resultado", "Tipo": "Margen", "Presupuesto (€)": 20000.0, "Real (€)": 18000.0},
+            {"Concepto": "Cargas Estructura", "Tipo": "Coste", "Presupuesto (€)": 15000.0, "Real (€)": 16000.0}
+        ])
+        
+    edited_control = st.data_editor(st.session_state.control_data, num_rows="dynamic", width="stretch")
+    
+    if st.button("Analizar Desviaciones"):
+        st.markdown("### 2. Análisis de Desviaciones")
+        
+        resultados_desviacion = []
+        
+        for _, row in edited_control.iterrows():
+            concepto = str(row["Concepto"]) if not pd.isna(row["Concepto"]) else "Sin nombre"
+            tipo = str(row["Tipo"]).lower()
+            
+            # Convertir a float de forma segura
+            presupuesto = float(row["Presupuesto (€)"]) if not pd.isna(row["Presupuesto (€)"]) else 0.0
+            real = float(row["Real (€)"]) if not pd.isna(row["Real (€)"]) else 0.0
+            
+            if tipo in ["ingreso", "margen", "coste"]:
+                desv = Desviacion(concepto, real, presupuesto, tipo)
+                
+                # Formatear el resultado
+                color = "🟢" if desv.es_favorable else "🔴"
+                etiqueta = "FAVORABLE" if desv.es_favorable else "DESFAVORABLE"
+                
+                resultados_desviacion.append({
+                    "Concepto": concepto,
+                    "Presupuesto": f"{presupuesto:,.2f} €",
+                    "Real": f"{real:,.2f} €",
+                    "Desviación (€)": f"{desv.importe:,.2f} €",
+                    "Desviación (%)": f"{(desv.importe/presupuesto*100) if presupuesto != 0 else 0:.2f} %",
+                    "Evaluación": f"{color} {etiqueta}"
+                })
+                
+        if resultados_desviacion:
+            df_resultados = pd.DataFrame(resultados_desviacion)
+            st.dataframe(df_resultados, width="stretch")
+            
+            st.info("💡 **Recuerda:** En ingresos y márgenes, una desviación positiva es buena. En costes, una desviación positiva (gastar más de lo previsto) es mala.")

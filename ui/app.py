@@ -1,6 +1,6 @@
 """
 Q-EOS Financial Management Framework
-Aplicación completa (Versión 3.1 - Plan de Gestión + Control)
+Aplicación completa (Versión 4.1 - Dashboard + Glosario)
 """
 import streamlit as st
 import pandas as pd
@@ -10,26 +10,71 @@ from core.balances import ActivoNoCorriente, ActivoCorriente, PatrimonioNeto, Pa
 from core.diagnostico import Diagnostico
 from core.control import Desviacion
 
+# Configuración de la página
 st.set_page_config(page_title="Q-EOS Financial Framework", page_icon="🏛️", layout="wide")
 
+# --- DATOS DEL GLOSARIO ---
+GLOSARIO = {
+    "ROE (Rentabilidad Financiera)": "Mide el beneficio que obtienen los accionistas por cada euro invertido en la empresa. Se calcula dividiendo el Resultado Neto entre el Patrimonio Neto.",
+    "ROA (Rentabilidad Económica)": "Mide la eficiencia de los activos de la empresa para generar beneficios, independientemente de cómo se hayan financiado. Se calcula dividiendo el BAIT entre el Activo Total.",
+    "Fondo de Maniobra": "Representa los recursos financieros a largo plazo que financian la parte del activo corriente. Se calcula como Activo Corriente menos Pasivo Corriente. Si es negativo, indica desequilibrio financiero.",
+    "BAIT": "Beneficio Antes de Intereses e Impuestos (también conocido como EBIT). Es el resultado de la empresa antes de descontar los gastos financieros y los impuestos.",
+    "Liquidez General": "Indica la capacidad de la empresa para hacer frente a sus deudas a corto plazo. Se calcula dividiendo el Activo Corriente entre el Pasivo Corriente. Un valor saludable suele estar entre 1.5 y 2.",
+    "Capital Circulante": "Recursos que la empresa necesita para financiar su ciclo de explotación (comprar materia prima, fabricar, vender y cobrar).",
+    "Desviación Presupuestaria": "Diferencia entre los datos reales y los presupuestos. Puede ser favorable (ingresas más o gastas menos de lo previsto) o desfavorable.",
+    "Umbral de Rentabilidad": "También llamado punto muerto. Es el nivel mínimo de ventas que debe alcanzar una empresa para cubrir todos sus costes (fijos y variables). Por debajo de este nivel, la empresa pierde dinero."
+}
+
+# Barra lateral
 st.sidebar.title("🏛️ Q-EOS")
 st.sidebar.markdown("Sistema de Gestión Financiera")
+st.sidebar.divider()
 
 menu = st.sidebar.radio(
     "Selecciona un módulo:",
-    ["1. Margen y Precios", "2. Modelo Económico", "3. Tesorería", "4. Balance Previsional", "5. Diagnóstico", "6. Control de Gestión"]
+    [
+        "🏠 Inicio / Dashboard", 
+        "1. Margen y Precios", 
+        "2. Modelo Económico", 
+        "3. Tesorería", 
+        "4. Balance Previsional", 
+        "5. Diagnóstico", 
+        "6. Control de Gestión",
+        "7. Glosario Financiero"
+    ]
 )
 
+# --- PÁGINA 0: DASHBOARD ---
+if menu == "🏠 Inicio / Dashboard":
+    st.title("🏛️ Q-EOS Financial Management Framework")
+    st.markdown("### Bienvenido a tu Sistema de Gestión Financiera")
+    st.write("Esta aplicación te permite planificar, analizar y controlar la situación económica de tu empresa paso a paso.")
+    st.divider()
+    st.markdown("### 📊 Resumen Ejecutivo (Ejemplo)")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Ventas Totales", "150.000 €", delta="+12%")
+    c2.metric("Margen Bruto", "45.000 €", delta="+5%")
+    c3.metric("Resultado Neto", "15.000 €", delta="-2%")
+    c4.metric("Liquidez", "1.85", delta="Saludable")
+    st.divider()
+    st.markdown("### 📚 Guía de Módulos")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.info("**1. Margen y Precios**\nCalcula el precio de venta ideal.")
+        st.info("**2. Modelo Económico**\nEstima cuánto vas a ganar o perder.")
+        st.info("**3. Tesorería**\nControla el flujo de caja.")
+    with col2:
+        st.success("**4. Balance Previsional**\nComprueba que tus cuentas cuadran.")
+        st.success("**5. Diagnóstico**\nAnaliza ratios clave como el ROE y el ROA.")
+        st.success("**6. Control de Gestión**\nCompara lo previsto con lo real.")
+
 # --- PÁGINA 1: MARGEN ---
-if menu == "1. Margen y Precios":
+elif menu == "1. Margen y Precios":
     st.title("💶 Gestión del Margen")
-    st.caption("Calcula el precio de venta a partir del coste y el margen objetivo.")
-    
     c1, c2, c3 = st.columns(3)
     pcsi = c1.number_input("Coste sin IVA (€)", min_value=0.01, value=1750.0)
     mg = c2.number_input("Margen (%)", min_value=0.0, max_value=99.99, value=30.0)
     iva = c3.number_input("IVA (%)", min_value=0.0, value=21.0)
-    
     if st.button("Calcular Precio"):
         r = calcular_precio(pcsi, mg, iva)
         c1, c2, c3 = st.columns(3)
@@ -40,196 +85,131 @@ if menu == "1. Margen y Precios":
 # --- PÁGINA 2: MODELO ECONÓMICO ---
 elif menu == "2. Modelo Económico":
     st.title("📊 Presupuesto de Operaciones")
-    st.caption("Añade tus líneas de negocio para calcular el resultado previsional.")
-    
-    st.markdown("### 1. Introduce tus líneas de negocio")
     if "lineas_data" not in st.session_state:
         st.session_state.lineas_data = pd.DataFrame([
             {"Nombre": "Producto A", "Ventas (€)": 100000.0, "Margen (%)": 30.0, "Cargas (€)": 20000.0},
             {"Nombre": "Producto B", "Ventas (€)": 50000.0, "Margen (%)": 20.0, "Cargas (€)": 10000.0}
         ])
-        
     edited_df = st.data_editor(st.session_state.lineas_data, num_rows="dynamic", width="stretch")
-    
     if st.button("Calcular Resultado Previsional"):
         def safe_float(val):
             if pd.isna(val) or val is None or str(val).strip() == "": return 0.0
             try: return float(val)
             except: return 0.0
-
         p = PresupuestoOperaciones()
         for _, row in edited_df.iterrows():
-            linea = LineaNegocio(
-                nombre=str(row["Nombre"]) if not pd.isna(row["Nombre"]) else "Sin nombre", 
-                ventas=safe_float(row["Ventas (€)"]), 
-                margen_pct=safe_float(row["Margen (%)"]), 
-                cargas_estructura=safe_float(row["Cargas (€)"])
-            )
+            linea = LineaNegocio(nombre=str(row["Nombre"]), ventas=safe_float(row["Ventas (€)"]), margen_pct=safe_float(row["Margen (%)"]), cargas_estructura=safe_float(row["Cargas (€)"]))
             p.add(linea)
-            
         resultado = p.cerrar()
-        
-        st.markdown("### 2. Resultados")
+        st.markdown("### Resultados")
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Ventas Totales", f"{resultado.ventas_totales:,.2f} €")
+        c1.metric("Ventas", f"{resultado.ventas_totales:,.2f} €")
         c2.metric("Margen Bruto", f"{resultado.margen_bruto_total:,.2f} €")
-        c3.metric("Cargas Totales", f"{resultado.cargas_totales:,.2f} €")
-        delta_pct = (resultado.resultado_total / resultado.ventas_totales * 100) if resultado.ventas_totales > 0 else 0
-        c4.metric("Resultado", f"{resultado.resultado_total:,.2f} €", delta=f"{delta_pct:.1f}% s/ventas")
-        
-        st.markdown("### 3. Gráfico de Contribución")
-        chart_data = pd.DataFrame({
-            "Concepto": ["Margen Bruto", "Cargas", "Resultado"],
-            "Euros": [resultado.margen_bruto_total, resultado.cargas_totales, resultado.resultado_total]
-        })
-        st.bar_chart(chart_data.set_index("Concepto"))
+        c3.metric("Cargas", f"{resultado.cargas_totales:,.2f} €")
+        c4.metric("Resultado", f"{resultado.resultado_total:,.2f} €")
+        st.bar_chart(pd.DataFrame({"Euros": [resultado.margen_bruto_total, resultado.cargas_totales, resultado.resultado_total]}, index=["Margen", "Cargas", "Resultado"]))
 
 # --- PÁGINA 3: TESORERÍA ---
 elif menu == "3. Tesorería":
     st.title("💧 Presupuesto de Tesorería")
-    st.caption("Analiza el flujo de caja de tu empresa.")
     c1, c2 = st.columns(2)
-    saldo = c1.number_input("Saldo inicial en caja (€)", min_value=0.0, value=20000.0)
+    saldo = c1.number_input("Saldo inicial (€)", value=20000.0)
     desfase = c2.number_input("Desfase de cobros (€)", value=-5000.0)
-    if st.button("Calcular Flujo de Caja"):
-        st.info("Simulación simple de tesorería")
-        st.write(f"El saldo final previsto es: **{saldo + desfase:,.2f} €**")
+    if st.button("Calcular"):
+        st.write(f"Saldo final previsto: **{saldo + desfase:,.2f} €**")
 
 # --- PÁGINA 4: BALANCE PREVISIONAL ---
 elif menu == "4. Balance Previsional":
     st.title("⚖️ Balance Previsional")
-    st.caption("Comprueba la ecuación fundamental: Activo = Pasivo + Patrimonio Neto")
-    
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("#### ACTIVO")
-        inm = st.number_input("Inmovilizado material (€)", value=100000.0)
-        amort = st.number_input("Amortización acumulada (€)", value=10000.0)
+        inm = st.number_input("Inmovilizado (€)", value=100000.0)
+        amort = st.number_input("Amortización (€)", value=10000.0)
         exist = st.number_input("Existencias (€)", value=10000.0)
         clientes = st.number_input("Clientes (€)", value=20000.0)
-        tesoreria = st.number_input("Tesorería / Caja (€)", value=30000.0)
-        
+        tesoreria = st.number_input("Caja (€)", value=30000.0)
         anc = ActivoNoCorriente(inmovilizado_material=inm, amortizacion_acumulada=amort)
         ac = ActivoCorriente(existencias=exist, clientes=clientes, tesoreria=tesoreria)
-        
     with col2:
-        st.markdown("#### PASIVO Y PATRIMONIO NETO")
+        st.markdown("#### PASIVO Y PN")
         capital = st.number_input("Capital (€)", value=80000.0)
         reservas = st.number_input("Reservas (€)", value=20000.0)
-        resultado = st.number_input("Resultado del ejercicio (€)", value=10000.0)
-        deuda_lp = st.number_input("Deuda a largo plazo (€)", value=20000.0)
+        resultado = st.number_input("Resultado (€)", value=10000.0)
+        deuda_lp = st.number_input("Deuda LP (€)", value=20000.0)
         proveedores = st.number_input("Proveedores (€)", value=20000.0)
-        
         pn = PatrimonioNeto(capital=capital, reservas=reservas, resultado_ejercicio=resultado)
         pnc = PasivoNoCorriente(deuda_largo_plazo=deuda_lp)
         pc = PasivoCorriente(proveedores=proveedores)
-        
-    if st.button("Calcular y Comprobar Balance"):
-        balance = Balance(
-            nombre="Balance Previsional", 
-            activo_no_corriente=anc, activo_corriente=ac, 
-            patrimonio_neto=pn, pasivo_no_corriente=pnc, pasivo_corriente=pc,
-            tolerancia=1000000.0
-        )
-        
-        st.markdown("### Resultados del Balance")
+    if st.button("Comprobar Balance"):
+        balance = Balance(nombre="Balance", activo_no_corriente=anc, activo_corriente=ac, patrimonio_neto=pn, pasivo_no_corriente=pnc, pasivo_corriente=pc, tolerancia=1000000.0)
         c1, c2, c3 = st.columns(3)
-        c1.metric("Total Activo", f"{balance.total_activo:,.2f} €")
-        c2.metric("Total Pasivo + PN", f"{balance.total_pasivo_mas_pn:,.2f} €")
+        c1.metric("Activo", f"{balance.total_activo:,.2f} €")
+        c2.metric("P+PN", f"{balance.total_pasivo_mas_pn:,.2f} €")
         c3.metric("Descuadre", f"{balance.descuadre:,.2f} €")
-        
-        if abs(balance.descuadre) < 0.01:
-            st.success("✅ El balance cuadra perfectamente.")
-        else:
-            st.warning("⚠️ El balance no cuadra. Revisa las partidas.")
-            
-        st.info(f"El Fondo de Maniobra es: **{balance.fondo_maniobra:,.2f} €**")
+        if abs(balance.descuadre) < 0.01: st.success("✅ El balance cuadra.")
+        else: st.warning("⚠️ El balance no cuadra.")
 
 # --- PÁGINA 5: DIAGNÓSTICO ---
 elif menu == "5. Diagnóstico":
-    st.title("🩺 Diagnóstico Económico-Financiero")
-    st.caption("Analiza la rentabilidad y la viabilidad de la empresa.")
-    
-    st.markdown("### 1. Datos para el análisis")
+    st.title("🩺 Diagnóstico")
     c1, c2, c3 = st.columns(3)
-    ventas = c1.number_input("Ventas Totales (€)", value=150000.0)
-    resultado = c2.number_input("Resultado Neto (€)", value=10000.0)
-    bait = c3.number_input("BAIT (Beneficio antes de intereses e impuestos)", value=12000.0)
-    
+    ventas = c1.number_input("Ventas (€)", value=150000.0)
+    resultado = c2.number_input("Resultado (€)", value=10000.0)
+    bait = c3.number_input("BAIT (€)", value=12000.0)
     c1, c2 = st.columns(2)
-    activo = c1.number_input("Activo Total (€)", value=150000.0)
-    pn = c2.number_input("Patrimonio Neto (€)", value=110000.0)
-    
+    activo = c1.number_input("Activo (€)", value=150000.0)
+    pn = c2.number_input("PN (€)", value=110000.0)
     if st.button("Calcular Diagnóstico"):
-        diag = Diagnostico(
-            ventas=ventas, resultado_neto=resultado, bait=bait,
-            activo_total=activo, patrimonio_neto=pn, pasivo_total=activo-pn,
-            activo_corriente=60000, pasivo_corriente=20000,
-            gastos_financieros=2000, cargas_fijas=30000, margen_contribucion_pct=40
-        )
-        
-        st.markdown("### 2. Ratios Clave")
+        diag = Diagnostico(ventas=ventas, resultado_neto=resultado, bait=bait, activo_total=activo, patrimonio_neto=pn, pasivo_total=activo-pn, activo_corriente=60000, pasivo_corriente=20000, gastos_financieros=2000, cargas_fijas=30000, margen_contribucion_pct=40)
         c1, c2, c3 = st.columns(3)
-        c1.metric("ROA (Rentabilidad Económica)", f"{diag.roa*100:.2f} %")
-        c2.metric("ROE (Rentabilidad Financiera)", f"{diag.roe*100:.2f} %")
-        c3.metric("Liquidez General", f"{diag.liquidez_general:.2f}")
-        
-        st.markdown("### 3. Semáforo de Viabilidad")
-        if diag.roe > 0.10:
-            st.success("🟢 Empresa saludable (ROE > 10%)")
-        elif diag.roe > 0:
-            st.warning("🟡 Rentabilidad positiva pero mejorable")
-        else:
-            st.error("🔴 Pérdidas: La empresa destruye valor")
+        c1.metric("ROA", f"{diag.roa*100:.2f} %")
+        c2.metric("ROE", f"{diag.roe*100:.2f} %")
+        c3.metric("Liquidez", f"{diag.liquidez_general:.2f}")
+        if diag.roe > 0.10: st.success("🟢 Empresa saludable")
+        elif diag.roe > 0: st.warning("🟡 Rentabilidad mejorable")
+        else: st.error("🔴 Pérdidas")
 
 # --- PÁGINA 6: CONTROL DE GESTIÓN ---
 elif menu == "6. Control de Gestión":
-    st.title("🎛️ Seguimiento y Control de Gestión")
-    st.caption("Compara el presupuesto con los datos reales para detectar desviaciones.")
-    
-    st.markdown("### 1. Introduce los datos (Presupuesto vs Real)")
-    
-    # Creamos una tabla editable para introducir los datos
+    st.title("🎛️ Control de Gestión")
     if "control_data" not in st.session_state:
         st.session_state.control_data = pd.DataFrame([
             {"Concepto": "Ventas", "Tipo": "Ingreso", "Presupuesto (€)": 100000.0, "Real (€)": 95000.0},
             {"Concepto": "Resultado", "Tipo": "Margen", "Presupuesto (€)": 20000.0, "Real (€)": 18000.0},
-            {"Concepto": "Cargas Estructura", "Tipo": "Coste", "Presupuesto (€)": 15000.0, "Real (€)": 16000.0}
+            {"Concepto": "Cargas", "Tipo": "Coste", "Presupuesto (€)": 15000.0, "Real (€)": 16000.0}
         ])
-        
     edited_control = st.data_editor(st.session_state.control_data, num_rows="dynamic", width="stretch")
-    
     if st.button("Analizar Desviaciones"):
-        st.markdown("### 2. Análisis de Desviaciones")
-        
-        resultados_desviacion = []
-        
+        resultados = []
         for _, row in edited_control.iterrows():
-            concepto = str(row["Concepto"]) if not pd.isna(row["Concepto"]) else "Sin nombre"
-            tipo = str(row["Tipo"]).lower()
-            
-            # Convertir a float de forma segura
-            presupuesto = float(row["Presupuesto (€)"]) if not pd.isna(row["Presupuesto (€)"]) else 0.0
-            real = float(row["Real (€)"]) if not pd.isna(row["Real (€)"]) else 0.0
-            
-            if tipo in ["ingreso", "margen", "coste"]:
-                desv = Desviacion(concepto, real, presupuesto, tipo)
-                
-                # Formatear el resultado
-                color = "🟢" if desv.es_favorable else "🔴"
-                etiqueta = "FAVORABLE" if desv.es_favorable else "DESFAVORABLE"
-                
-                resultados_desviacion.append({
-                    "Concepto": concepto,
-                    "Presupuesto": f"{presupuesto:,.2f} €",
-                    "Real": f"{real:,.2f} €",
-                    "Desviación (€)": f"{desv.importe:,.2f} €",
-                    "Desviación (%)": f"{(desv.importe/presupuesto*100) if presupuesto != 0 else 0:.2f} %",
-                    "Evaluación": f"{color} {etiqueta}"
-                })
-                
-        if resultados_desviacion:
-            df_resultados = pd.DataFrame(resultados_desviacion)
-            st.dataframe(df_resultados, width="stretch")
-            
-            st.info("💡 **Recuerda:** En ingresos y márgenes, una desviación positiva es buena. En costes, una desviación positiva (gastar más de lo previsto) es mala.")
+            c = str(row["Concepto"])
+            t = str(row["Tipo"]).lower()
+            p = float(row["Presupuesto (€)"]) if not pd.isna(row["Presupuesto (€)"]) else 0.0
+            r = float(row["Real (€)"]) if not pd.isna(row["Real (€)"]) else 0.0
+            if t in ["ingreso", "margen", "coste"]:
+                d = Desviacion(c, r, p, t)
+                col = "🟢" if d.es_favorable else "🔴"
+                resultados.append({"Concepto": c, "Presupuesto": f"{p:,.2f} €", "Real": f"{r:,.2f} €", "Desviación": f"{d.importe:,.2f} €", "Evaluación": f"{col} {'FAVORABLE' if d.es_favorable else 'DESFAVORABLE'}"})
+        if resultados: st.dataframe(pd.DataFrame(resultados), width="stretch")
+
+# --- PÁGINA 7: GLOSARIO ---
+elif menu == "7. Glosario Financiero":
+    st.title("📚 Glosario Financiero")
+    st.caption("Consulta los conceptos clave del Plan de Gestión.")
+    
+    st.markdown("### Buscador de términos")
+    busqueda = st.text_input("Escribe una palabra para buscar (ej. ROE, liquidez...):", "")
+    
+    terminos_filtrados = {k: v for k, v in GLOSARIO.items() if busqueda.lower() in k.lower() or busqueda.lower() in v.lower()}
+    
+    if busqueda:
+        if terminos_filtrados:
+            for termino, definicion in terminos_filtrados.items():
+                st.info(f"**{termino}**\n\n{definicion}")
+        else:
+            st.warning("No se han encontrado términos que coincidan con tu búsqueda.")
+    else:
+        for termino, definicion in GLOSARIO.items():
+            with st.expander(termino):
+                st.write(definicion)

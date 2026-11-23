@@ -1,6 +1,6 @@
 """
 Q-EOS Financial Management Framework
-Aplicación completa (Versión 4.1 - Dashboard + Glosario)
+Aplicación completa (Versión 4.2 - Exportación a Excel)
 """
 import streamlit as st
 import pandas as pd
@@ -10,10 +10,8 @@ from core.balances import ActivoNoCorriente, ActivoCorriente, PatrimonioNeto, Pa
 from core.diagnostico import Diagnostico
 from core.control import Desviacion
 
-# Configuración de la página
 st.set_page_config(page_title="Q-EOS Financial Framework", page_icon="🏛️", layout="wide")
 
-# --- DATOS DEL GLOSARIO ---
 GLOSARIO = {
     "ROE (Rentabilidad Financiera)": "Mide el beneficio que obtienen los accionistas por cada euro invertido en la empresa. Se calcula dividiendo el Resultado Neto entre el Patrimonio Neto.",
     "ROA (Rentabilidad Económica)": "Mide la eficiencia de los activos de la empresa para generar beneficios, independientemente de cómo se hayan financiado. Se calcula dividiendo el BAIT entre el Activo Total.",
@@ -25,23 +23,13 @@ GLOSARIO = {
     "Umbral de Rentabilidad": "También llamado punto muerto. Es el nivel mínimo de ventas que debe alcanzar una empresa para cubrir todos sus costes (fijos y variables). Por debajo de este nivel, la empresa pierde dinero."
 }
 
-# Barra lateral
 st.sidebar.title("🏛️ Q-EOS")
 st.sidebar.markdown("Sistema de Gestión Financiera")
 st.sidebar.divider()
 
 menu = st.sidebar.radio(
     "Selecciona un módulo:",
-    [
-        "🏠 Inicio / Dashboard", 
-        "1. Margen y Precios", 
-        "2. Modelo Económico", 
-        "3. Tesorería", 
-        "4. Balance Previsional", 
-        "5. Diagnóstico", 
-        "6. Control de Gestión",
-        "7. Glosario Financiero"
-    ]
+    ["🏠 Inicio / Dashboard", "1. Margen y Precios", "2. Modelo Económico", "3. Tesorería", "4. Balance Previsional", "5. Diagnóstico", "6. Control de Gestión", "7. Glosario Financiero"]
 )
 
 # --- PÁGINA 0: DASHBOARD ---
@@ -107,7 +95,30 @@ elif menu == "2. Modelo Económico":
         c2.metric("Margen Bruto", f"{resultado.margen_bruto_total:,.2f} €")
         c3.metric("Cargas", f"{resultado.cargas_totales:,.2f} €")
         c4.metric("Resultado", f"{resultado.resultado_total:,.2f} €")
+        
+        # Gráfico
         st.bar_chart(pd.DataFrame({"Euros": [resultado.margen_bruto_total, resultado.cargas_totales, resultado.resultado_total]}, index=["Margen", "Cargas", "Resultado"]))
+        
+        # --- BOTÓN DE DESCARGA EXCEL (Modelo) ---
+        df_descarga = pd.DataFrame([{
+            "Ventas Totales": resultado.ventas_totales,
+            "Margen Bruto": resultado.margen_bruto_total,
+            "Cargas Totales": resultado.cargas_totales,
+            "Resultado": resultado.resultado_total
+        }])
+        # Convertir a Excel en memoria
+        excel_data = pd.ExcelWriter("presupuesto.xlsx", engine="openpyxl")
+        df_descarga.to_excel(excel_data, index=False, sheet_name="Resumen")
+        edited_df.to_excel(excel_data, index=False, sheet_name="Lineas")
+        excel_data.close()
+        
+        with open("presupuesto.xlsx", "rb") as f:
+            st.download_button(
+                label="⬇️ Descargar Presupuesto en Excel",
+                data=f,
+                file_name="presupuesto_operaciones.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
 # --- PÁGINA 3: TESORERÍA ---
 elif menu == "3. Tesorería":
@@ -145,7 +156,7 @@ elif menu == "4. Balance Previsional":
         balance = Balance(nombre="Balance", activo_no_corriente=anc, activo_corriente=ac, patrimonio_neto=pn, pasivo_no_corriente=pnc, pasivo_corriente=pc, tolerancia=1000000.0)
         c1, c2, c3 = st.columns(3)
         c1.metric("Activo", f"{balance.total_activo:,.2f} €")
-        c2.metric("P+PN", f"{balance.total_pasivo_mas_pn:,.2f} €")
+        c2.metric("Pasivo + PN", f"{balance.total_pasivo_mas_pn:,.2f} €")
         c3.metric("Descuadre", f"{balance.descuadre:,.2f} €")
         if abs(balance.descuadre) < 0.01: st.success("✅ El balance cuadra.")
         else: st.warning("⚠️ El balance no cuadra.")
@@ -191,18 +202,32 @@ elif menu == "6. Control de Gestión":
                 d = Desviacion(c, r, p, t)
                 col = "🟢" if d.es_favorable else "🔴"
                 resultados.append({"Concepto": c, "Presupuesto": f"{p:,.2f} €", "Real": f"{r:,.2f} €", "Desviación": f"{d.importe:,.2f} €", "Evaluación": f"{col} {'FAVORABLE' if d.es_favorable else 'DESFAVORABLE'}"})
-        if resultados: st.dataframe(pd.DataFrame(resultados), width="stretch")
+        
+        if resultados:
+            df_resultados = pd.DataFrame(resultados)
+            st.dataframe(df_resultados, width="stretch")
+            
+            # --- BOTÓN DE DESCARGA EXCEL (Control) ---
+            excel_data_control = pd.ExcelWriter("control.xlsx", engine="openpyxl")
+            df_resultados.to_excel(excel_data_control, index=False, sheet_name="Desviaciones")
+            excel_data_control.close()
+            
+            with open("control.xlsx", "rb") as f:
+                st.download_button(
+                    label="⬇️ Descargar Informe de Desviaciones en Excel",
+                    data=f,
+                    file_name="control_gestion.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            
+            st.info("💡 **Recuerda:** En ingresos y márgenes, una desviación positiva es buena. En costes, una desviación positiva (gastar más) es mala.")
 
 # --- PÁGINA 7: GLOSARIO ---
 elif menu == "7. Glosario Financiero":
     st.title("📚 Glosario Financiero")
-    st.caption("Consulta los conceptos clave del Plan de Gestión.")
-    
     st.markdown("### Buscador de términos")
     busqueda = st.text_input("Escribe una palabra para buscar (ej. ROE, liquidez...):", "")
-    
     terminos_filtrados = {k: v for k, v in GLOSARIO.items() if busqueda.lower() in k.lower() or busqueda.lower() in v.lower()}
-    
     if busqueda:
         if terminos_filtrados:
             for termino, definicion in terminos_filtrados.items():

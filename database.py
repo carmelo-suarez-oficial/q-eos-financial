@@ -2,13 +2,13 @@
 Q-EOS - Módulo de Base de Datos (SQLite)
 """
 import sqlite3
+import pandas as pd
+
+DB_NAME = "q_eos.db"
 
 def inicializar_db():
-    # Se conecta a la base de datos (si no existe, la crea)
-    conn = sqlite3.connect("q_eos.db")
+    conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    
-    # Creamos la tabla para guardar los presupuestos
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS presupuestos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,6 +21,22 @@ def inicializar_db():
     """)
     conn.commit()
     conn.close()
+
+def guardar_presupuesto(nombre: str, ventas: float, margen: float, cargas: float):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO presupuestos (nombre, ventas, margen, cargas)
+        VALUES (?, ?, ?, ?)
+    """, (nombre, ventas, margen, cargas))
+    conn.commit()
+    conn.close()
+
+def obtener_presupuestos() -> pd.DataFrame:
+    conn = sqlite3.connect(DB_NAME)
+    df = pd.read_sql_query("SELECT * FROM presupuestos ORDER BY fecha DESC", conn)
+    conn.close()
+    return df
 
 if __name__ == "__main__":
     inicializar_db()

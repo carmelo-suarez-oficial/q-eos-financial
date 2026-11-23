@@ -77,6 +77,7 @@ elif menu == "1. Margen y Precios":
 # --- PÁGINA 2: MODELO ECONÓMICO ---
 elif menu == "2. Modelo Económico":
     st.title("📊 Presupuesto de Operaciones")
+    
     if "lineas_data" not in st.session_state:
         st.session_state.lineas_data = pd.DataFrame([
             {"Nombre": "Producto A", "Ventas (€)": 100000.0, "Margen (%)": 30.0, "Cargas (€)": 20000.0},
@@ -96,10 +97,8 @@ elif menu == "2. Modelo Económico":
             linea = LineaNegocio(nombre=str(row["Nombre"]), ventas=safe_float(row["Ventas (€)"]), margen_pct=safe_float(row["Margen (%)"]), cargas_estructura=safe_float(row["Cargas (€)"]))
             p.add(linea)
         
-        # Guardamos el resultado en la "memoria" de la sesión para que no se pierda
         st.session_state.resultado_presupuesto = p.cerrar()
 
-    # Si hay un resultado guardado en la memoria, lo mostramos
     if "resultado_presupuesto" in st.session_state:
         res = st.session_state.resultado_presupuesto
         
@@ -128,9 +127,26 @@ elif menu == "2. Modelo Económico":
 
     st.divider()
     st.markdown("### 📂 Historial de Presupuestos Guardados")
+    
     df_historial = database.obtener_presupuestos()
+    
     if not df_historial.empty:
         st.dataframe(df_historial, width="stretch")
+        
+        st.markdown("#### Cargar un presupuesto guardado")
+        opciones = df_historial.apply(lambda x: f"ID {x['id']}: {x['nombre']} ({x['fecha'][:10]})", axis=1).tolist()
+        seleccion = st.selectbox("Selecciona un presupuesto para cargar en la tabla:", opciones)
+        
+        if st.button("Cargar Presupuesto Seleccionado"):
+            id_seleccionado = int(seleccion.split(":")[0].replace("ID ", ""))
+            fila = df_historial[df_historial["id"] == id_seleccionado].iloc[0]
+            
+            st.session_state.lineas_data = pd.DataFrame([
+                {"Nombre": fila["nombre"], "Ventas (€)": fila["ventas"], "Margen (%)": (fila["margen"]/fila["ventas"]*100) if fila["ventas"]>0 else 0, "Cargas (€)": fila["cargas"]}
+            ])
+            st.success(f"Presupuesto '{fila['nombre']}' cargado en la tabla superior.")
+            st.rerun()
+            
     else:
         st.info("Aún no hay presupuestos guardados en la base de datos.")
 

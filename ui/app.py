@@ -1,6 +1,6 @@
 """
 Q-EOS Financial Management Framework
-Aplicación completa (Versión 4.2 - Exportación a Excel)
+Aplicación completa (Versión 5.0 - Simulación Directiva)
 """
 import streamlit as st
 import pandas as pd
@@ -29,7 +29,7 @@ st.sidebar.divider()
 
 menu = st.sidebar.radio(
     "Selecciona un módulo:",
-    ["🏠 Inicio / Dashboard", "1. Margen y Precios", "2. Modelo Económico", "3. Tesorería", "4. Balance Previsional", "5. Diagnóstico", "6. Control de Gestión", "7. Glosario Financiero"]
+    ["🏠 Inicio / Dashboard", "1. Margen y Precios", "2. Modelo Económico", "3. Tesorería", "4. Balance Previsional", "5. Diagnóstico", "6. Control de Gestión", "7. Glosario Financiero", "8. Simulación Directiva"]
 )
 
 # --- PÁGINA 0: DASHBOARD ---
@@ -95,30 +95,15 @@ elif menu == "2. Modelo Económico":
         c2.metric("Margen Bruto", f"{resultado.margen_bruto_total:,.2f} €")
         c3.metric("Cargas", f"{resultado.cargas_totales:,.2f} €")
         c4.metric("Resultado", f"{resultado.resultado_total:,.2f} €")
-        
-        # Gráfico
         st.bar_chart(pd.DataFrame({"Euros": [resultado.margen_bruto_total, resultado.cargas_totales, resultado.resultado_total]}, index=["Margen", "Cargas", "Resultado"]))
         
-        # --- BOTÓN DE DESCARGA EXCEL (Modelo) ---
-        df_descarga = pd.DataFrame([{
-            "Ventas Totales": resultado.ventas_totales,
-            "Margen Bruto": resultado.margen_bruto_total,
-            "Cargas Totales": resultado.cargas_totales,
-            "Resultado": resultado.resultado_total
-        }])
-        # Convertir a Excel en memoria
+        df_descarga = pd.DataFrame([{"Ventas Totales": resultado.ventas_totales, "Margen Bruto": resultado.margen_bruto_total, "Cargas Totales": resultado.cargas_totales, "Resultado": resultado.resultado_total}])
         excel_data = pd.ExcelWriter("presupuesto.xlsx", engine="openpyxl")
         df_descarga.to_excel(excel_data, index=False, sheet_name="Resumen")
         edited_df.to_excel(excel_data, index=False, sheet_name="Lineas")
         excel_data.close()
-        
         with open("presupuesto.xlsx", "rb") as f:
-            st.download_button(
-                label="⬇️ Descargar Presupuesto en Excel",
-                data=f,
-                file_name="presupuesto_operaciones.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            st.download_button("⬇️ Descargar Presupuesto en Excel", data=f, file_name="presupuesto_operaciones.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 # --- PÁGINA 3: TESORERÍA ---
 elif menu == "3. Tesorería":
@@ -202,24 +187,14 @@ elif menu == "6. Control de Gestión":
                 d = Desviacion(c, r, p, t)
                 col = "🟢" if d.es_favorable else "🔴"
                 resultados.append({"Concepto": c, "Presupuesto": f"{p:,.2f} €", "Real": f"{r:,.2f} €", "Desviación": f"{d.importe:,.2f} €", "Evaluación": f"{col} {'FAVORABLE' if d.es_favorable else 'DESFAVORABLE'}"})
-        
         if resultados:
             df_resultados = pd.DataFrame(resultados)
             st.dataframe(df_resultados, width="stretch")
-            
-            # --- BOTÓN DE DESCARGA EXCEL (Control) ---
             excel_data_control = pd.ExcelWriter("control.xlsx", engine="openpyxl")
             df_resultados.to_excel(excel_data_control, index=False, sheet_name="Desviaciones")
             excel_data_control.close()
-            
             with open("control.xlsx", "rb") as f:
-                st.download_button(
-                    label="⬇️ Descargar Informe de Desviaciones en Excel",
-                    data=f,
-                    file_name="control_gestion.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            
+                st.download_button("⬇️ Descargar Informe de Desviaciones en Excel", data=f, file_name="control_gestion.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             st.info("💡 **Recuerda:** En ingresos y márgenes, una desviación positiva es buena. En costes, una desviación positiva (gastar más) es mala.")
 
 # --- PÁGINA 7: GLOSARIO ---
@@ -238,3 +213,59 @@ elif menu == "7. Glosario Financiero":
         for termino, definicion in GLOSARIO.items():
             with st.expander(termino):
                 st.write(definicion)
+
+# --- PÁGINA 8: SIMULACIÓN DIRECTIVA ---
+elif menu == "8. Simulación Directiva":
+    st.title("🎮 Simulación Directiva (¿Qué pasaría si...?)")
+    st.caption("Aprende a decidir. Mueve las variables y observa el impacto en el resultado de la empresa.")
+    
+    st.markdown("### 1. Datos de partida (Base)")
+    c1, c2, c3 = st.columns(3)
+    base_ventas = c1.number_input("Ventas Base (€)", value=150000.0, step=1000.0)
+    base_margen = c2.number_input("Margen Base (%)", value=30.0, step=1.0)
+    base_cargas = c3.number_input("Cargas Base (€)", value=30000.0, step=1000.0)
+    
+    st.divider()
+    
+    st.markdown("### 2. Toma de Decisiones (Escenario)")
+    st.write("Mueve los deslizadores para simular tus decisiones directivas:")
+    
+    delta_ventas = st.slider("Variación en Ventas (%)", min_value=-50, max_value=50, value=0, step=5)
+    delta_margen = st.slider("Variación en Margen (puntos porcentuales)", min_value=-20, max_value=20, value=0, step=1)
+    delta_cargas = st.slider("Variación en Cargas (%)", min_value=-30, max_value=50, value=0, step=5)
+    
+    # Cálculos base
+    margen_bruto_base = base_ventas * (base_margen / 100)
+    resultado_base = margen_bruto_base - base_cargas
+    
+    # Cálculos escenario
+    sim_ventas = base_ventas * (1 + delta_ventas / 100)
+    sim_margen = base_margen + delta_margen
+    sim_margen_bruto = sim_ventas * (sim_margen / 100)
+    sim_cargas = base_cargas * (1 + delta_cargas / 100)
+    sim_resultado = sim_margen_bruto - sim_cargas
+    
+    st.divider()
+    
+    st.markdown("### 3. Impacto en los Resultados")
+    c1, c2 = st.columns(2)
+    
+    with c1:
+        st.markdown("#### 🔵 Escenario Base")
+        st.metric("Resultado Base", f"{resultado_base:,.2f} €")
+        st.write(f"Ventas: {base_ventas:,.2f} €")
+        st.write(f"Cargas: {base_cargas:,.2f} €")
+        
+    with c2:
+        st.markdown("#### 🟢 Escenario Simulado")
+        st.metric("Resultado Simulado", f"{sim_resultado:,.2f} €", 
+                  delta=f"{sim_resultado - resultado_base:,.2f} € vs Base")
+        st.write(f"Ventas: {sim_ventas:,.2f} €")
+        st.write(f"Cargas: {sim_cargas:,.2f} €")
+        
+    if sim_resultado > resultado_base:
+        st.success("¡Buena decisión! El resultado de la empresa mejora.")
+    elif sim_resultado == resultado_base:
+        st.info("Las decisiones no alteran el resultado.")
+    else:
+        st.warning("Cuidado: Estas decisiones reducen el beneficio de la empresa.")

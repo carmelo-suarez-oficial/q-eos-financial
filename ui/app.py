@@ -1,6 +1,6 @@
 """
 Q-EOS Financial Management Framework
-Aplicación completa (Versión 7.0 - Todo integrado)
+Aplicación completa (Versión 8.0 - Dashboard Dinámico)
 """
 import streamlit as st
 import pandas as pd
@@ -35,24 +35,48 @@ menu = st.sidebar.radio(
     ["🏠 Inicio / Dashboard", "1. Margen y Precios", "2. Modelo Económico", "3. Tesorería", "4. Balance Previsional", "5. Diagnóstico", "6. Control de Gestión", "7. Glosario Financiero", "8. Simulación Directiva"]
 )
 
-# --- PÁGINA 0: DASHBOARD ---
+# --- PÁGINA 0: DASHBOARD DINÁMICO ---
 if menu == "🏠 Inicio / Dashboard":
     st.title("🏛️ Q-EOS Financial Management Framework")
     st.markdown("### Bienvenido a tu Sistema de Gestión Financiera")
     st.write("Esta aplicación te permite planificar, analizar y controlar la situación económica de tu empresa paso a paso.")
+    
     st.divider()
-    st.markdown("### 📊 Resumen Ejecutivo (Ejemplo)")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Ventas Totales", "150.000 €", delta="+12%")
-    c2.metric("Margen Bruto", "45.000 €", delta="+5%")
-    c3.metric("Resultado Neto", "15.000 €", delta="-2%")
-    c4.metric("Liquidez", "1.85", delta="Saludable")
+    st.markdown("### 📊 Resumen Ejecutivo (Último Presupuesto Guardado)")
+    
+    # Obtenemos los presupuestos de la base de datos
+    df_dashboard = database.obtener_presupuestos()
+    
+    if not df_dashboard.empty:
+        # El primero de la lista es el más reciente
+        ultimo = df_dashboard.iloc[0]
+        ventas = ultimo["ventas"]
+        margen = ultimo["margen"]
+        cargas = ultimo["cargas"]
+        resultado = margen - cargas
+        
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Ventas Totales", f"{ventas:,.2f} €")
+        c2.metric("Margen Bruto", f"{margen:,.2f} €")
+        c3.metric("Cargas", f"{cargas:,.2f} €")
+        c4.metric("Resultado", f"{resultado:,.2f} €")
+        
+        st.caption(f"Basado en el presupuesto: **{ultimo['nombre']}** (Guardado el {ultimo['fecha'][:10]})")
+    else:
+        st.info("Aún no hay presupuestos guardados en la base de datos. Ve al Modelo Económico para crear tu primer presupuesto.")
+        # Datos de ejemplo si la base de datos está vacía
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Ventas Totales", "0,00 €")
+        c2.metric("Margen Bruto", "0,00 €")
+        c3.metric("Cargas", "0,00 €")
+        c4.metric("Resultado", "0,00 €")
+
     st.divider()
     st.markdown("### 📚 Guía de Módulos")
     col1, col2 = st.columns(2)
     with col1:
         st.info("**1. Margen y Precios**\nCalcula el precio de venta ideal.")
-        st.info("**2. Modelo Económico**\nEstima cuánto vas a ganar o perder.")
+        st.info("**2. Modelo Económico**\nEstima cuánto vas a ganar o perder y guarda el presupuesto.")
         st.info("**3. Tesorería**\nControla el flujo de caja.")
     with col2:
         st.success("**4. Balance Previsional**\nComprueba que tus cuentas cuadran.")

@@ -1,6 +1,6 @@
 """
 Q-EOS Financial Management Framework
-Aplicación completa (Versión 6.0 - Base de Datos Integrada)
+Aplicación completa (Versión 7.0 - Todo integrado)
 """
 import streamlit as st
 import pandas as pd
@@ -13,7 +13,6 @@ import database
 
 st.set_page_config(page_title="Q-EOS Financial Framework", page_icon="🏛️", layout="wide")
 
-# Inicializamos la DB por si acaso no está creada
 database.inicializar_db()
 
 GLOSARIO = {
@@ -127,7 +126,6 @@ elif menu == "2. Modelo Económico":
 
     st.divider()
     st.markdown("### 📂 Historial de Presupuestos Guardados")
-    
     df_historial = database.obtener_presupuestos()
     
     if not df_historial.empty:
@@ -146,7 +144,6 @@ elif menu == "2. Modelo Económico":
             ])
             st.success(f"Presupuesto '{fila['nombre']}' cargado en la tabla superior.")
             st.rerun()
-            
     else:
         st.info("Aún no hay presupuestos guardados en la base de datos.")
 
@@ -214,13 +211,41 @@ elif menu == "5. Diagnóstico":
 # --- PÁGINA 6: CONTROL DE GESTIÓN ---
 elif menu == "6. Control de Gestión":
     st.title("🎛️ Control de Gestión")
+    st.caption("Compara un presupuesto guardado con los datos reales.")
+    
+    st.markdown("### 1. Cargar Presupuesto Base")
+    df_presupuestos = database.obtener_presupuestos()
+    
+    if not df_presupuestos.empty:
+        opciones = df_presupuestos.apply(lambda x: f"ID {x['id']}: {x['nombre']}", axis=1).tolist()
+        seleccion = st.selectbox("Selecciona el presupuesto que quieres usar como base:", opciones, key="control_presupuesto")
+        
+        if st.button("Cargar Datos del Presupuesto en la Tabla"):
+            id_seleccionado = int(seleccion.split(":")[0].replace("ID ", ""))
+            fila = df_presupuestos[df_presupuestos["id"] == id_seleccionado].iloc[0]
+            
+            st.session_state.control_data = pd.DataFrame([
+                {"Concepto": "Ventas", "Tipo": "Ingreso", "Presupuesto (€)": fila["ventas"], "Real (€)": 0.0},
+                {"Concepto": "Margen Bruto", "Tipo": "Margen", "Presupuesto (€)": fila["margen"], "Real (€)": 0.0},
+                {"Concepto": "Cargas", "Tipo": "Coste", "Presupuesto (€)": fila["cargas"], "Real (€)": 0.0}
+            ])
+            st.success("Presupuesto cargado. Introduce ahora los datos reales.")
+            st.rerun()
+    else:
+        st.info("Aún no hay presupuestos guardados. Guarda uno en el Modelo Económico primero.")
+        
+    st.divider()
+    st.markdown("### 2. Introduce los Datos Reales")
+    
     if "control_data" not in st.session_state:
         st.session_state.control_data = pd.DataFrame([
             {"Concepto": "Ventas", "Tipo": "Ingreso", "Presupuesto (€)": 100000.0, "Real (€)": 95000.0},
             {"Concepto": "Resultado", "Tipo": "Margen", "Presupuesto (€)": 20000.0, "Real (€)": 18000.0},
             {"Concepto": "Cargas", "Tipo": "Coste", "Presupuesto (€)": 15000.0, "Real (€)": 16000.0}
         ])
+        
     edited_control = st.data_editor(st.session_state.control_data, num_rows="dynamic", width="stretch")
+    
     if st.button("Analizar Desviaciones"):
         resultados = []
         for _, row in edited_control.iterrows():
@@ -232,14 +257,19 @@ elif menu == "6. Control de Gestión":
                 d = Desviacion(c, r, p, t)
                 col = "🟢" if d.es_favorable else "🔴"
                 resultados.append({"Concepto": c, "Presupuesto": f"{p:,.2f} €", "Real": f"{r:,.2f} €", "Desviación": f"{d.importe:,.2f} €", "Evaluación": f"{col} {'FAVORABLE' if d.es_favorable else 'DESFAVORABLE'}"})
+        
         if resultados:
+            st.markdown("### 3. Resultados del Análisis")
             df_resultados = pd.DataFrame(resultados)
             st.dataframe(df_resultados, width="stretch")
+            
             excel_data_control = pd.ExcelWriter("control.xlsx", engine="openpyxl")
             df_resultados.to_excel(excel_data_control, index=False, sheet_name="Desviaciones")
             excel_data_control.close()
             with open("control.xlsx", "rb") as f:
                 st.download_button("⬇️ Descargar Informe de Desviaciones en Excel", data=f, file_name="control_gestion.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            
+            st.info("💡 **Recuerda:** En ingresos y márgenes, una desviación positiva es buena. En costes, una desviación positiva (gastar más) es mala.")
 
 # --- PÁGINA 7: GLOSARIO ---
 elif menu == "7. Glosario Financiero":
